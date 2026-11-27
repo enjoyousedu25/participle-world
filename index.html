@@ -1,0 +1,342 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Theme Park Tycoon: Participle World</title>
+<style>
+:root{--bg:#1d3b5c;--ink:#18304a;--card:#fffaf0;--acc:#f4a21d;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#10243a}}
+*{box-sizing:border-box}html,body{height:100%;margin:0;background:var(--bg);font-family:"Trebuchet MS",Verdana,sans-serif;overflow:hidden;user-select:none}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+canvas{position:absolute;inset:0;width:100%;height:100%}
+#hud{position:absolute;top:env(safe-area-inset-top,0px);left:0;right:0;display:flex;gap:6px;flex-wrap:wrap;padding:6px;pointer-events:none}
+.pill{background:rgba(255,250,240,.93);color:var(--ink);border-radius:14px;padding:4px 10px;font-weight:700;font-size:14px;box-shadow:0 2px 0 #0003;pointer-events:auto}
+button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:8px 14px;background:var(--acc);color:#2a1a00;font-weight:700;box-shadow:0 3px 0 #0004}
+button:disabled{opacity:.45;cursor:default}.sm{padding:3px 9px;font-size:13px}
+#ov{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:#0006;padding:10px;overflow:auto}
+.panel{background:var(--card);color:var(--ink);border-radius:18px;padding:16px;max-width:640px;width:100%;box-shadow:0 8px 0 #0004;max-height:94%;overflow:auto}
+.opt{display:block;width:100%;text-align:left;margin:6px 0;background:#fff;border:3px solid #cdbfa0;font-size:17px}
+.opt.bad{background:#ffd6d6;border-color:#d44}.opt.ok{background:#cdf5cd;border-color:#2a9a2a}
+#tc{position:absolute;bottom:calc(10px + env(safe-area-inset-bottom,0px));left:10px;right:10px;display:flex;justify-content:space-between;pointer-events:none}
+#tc div{pointer-events:auto}#tc button{width:54px;height:54px;font-size:22px;margin:2px;opacity:.8}
+.shop{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}.it{background:#fff;border-radius:12px;padding:8px;border:2px solid #e2d6b8}
+h2{margin:0 0 6px}.nm{font-weight:800;color:#a24b00}.tip{position:absolute;left:50%;transform:translateX(-50%);bottom:90px;display:none;background:#fffaf0;color:var(--ink);padding:6px 12px;border-radius:12px;font-weight:700}
+#hud{gap:6px;padding:8px}#hud>*{pointer-events:auto}.sp{flex:1}
+.gp{background:rgba(16,30,50,.62);backdrop-filter:blur(6px);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:12px;padding:4px 10px;font-size:13px;box-shadow:0 2px 8px #0004;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.gp small{opacity:.75;font-size:11px}.gp.w{min-width:112px}.bar{flex:1 0 100%;height:5px;background:#fff3;border-radius:3px;overflow:hidden}.bar i{display:block;height:100%;background:#59c9ff;border-radius:3px}
+.hb{background:rgba(16,30,50,.62);color:#fff;border:1px solid rgba(255,255,255,.25);padding:5px 11px;box-shadow:0 2px 8px #0004;font-size:14px;backdrop-filter:blur(6px)}
+#tc button{width:44px;height:44px;font-size:17px;border-radius:50%;background:rgba(255,255,255,.28);color:#fff;border:1px solid rgba(255,255,255,.5);box-shadow:none;opacity:.7;margin:3px}
+.tip{background:rgba(255,250,240,.96);border:2px solid #f4a21d;border-radius:16px;padding:7px 14px;box-shadow:0 4px 10px #0004;font-size:15px}
+.tip::before{content:"💬 "}.tip::after{content:"";position:absolute;left:50%;bottom:-9px;margin-left:-8px;border:8px solid transparent;border-top-color:#f4a21d;border-bottom:0}
+</style></head><body>
+<canvas id="c"></canvas><div id="hud"></div><div class="tip" id="tip"></div>
+<div id="tc"><div><button id="bu">▲</button><br><button id="bl">◀</button><button id="bd">▼</button><button id="br">▶</button></div><div><button id="be">E</button><br><button id="bz">＋</button><button id="bzo">－</button></div></div>
+<div id="ov"><div class="panel" id="pn"></div></div>
+<script>
+const C=document.getElementById("c"),X=C.getContext("2d"),$=id=>document.getElementById(id);
+const CONC=["Continuous form (be + -ing)","-ing adjectives","Perfect form (have + past participle)","-ing as a noun (gerund)","Past participle adjectives","Noun-like “the injured”"];
+const HINTS=[["Look for am/is/are/was/were/will be/have been just before the blank.","An action in progress uses be + a verb ending in -ing.","Choose the -ing form of the verb."],
+["Ask: is the word describing the thing that causes a feeling?","-ing describes what causes the feeling; -ed describes how a person feels.","The noun is a thing (ride, trick, map…), so pick the -ing adjective."],
+["Look at have/has/had before the blank.","Have/has/had is followed by a past participle.","Some past participles are irregular (take→taken, go→gone, ring→rung)."],
+["The blank names an activity, like a noun.","A verb used as a noun often ends in -ing (Swimming is fun).","Pick the -ing form that works as the name of an activity."],
+["A word is needed to describe a noun, showing what happened to it.","Think: something that has been broken/torn/frozen…","Choose the past participle form (check irregular forms)."],
+["“The + describing word” can mean a group of people.","The injured = people who have been injured.","Pick the past participle used with “the”."]];
+const EXP=["“{a}” is the -ing form after a form of be. Continuous = be + verb-ing for an action in progress.","“{a}” describes the thing that causes the feeling, so we use -ing. (People who feel it use -ed.)","“{a}” is the past participle needed after have/has/had. Some are irregular, like eaten, taken, gone, written.","“{a}” is an -ing form working as a noun (a gerund): it names an activity.","“{a}” is a past participle used like an adjective to describe the noun.","“the {a}” is a past participle used like a noun for a group of people."];
+// loc|npc|stem|correct|w1|w2|w3|custom explanation. Index%6 = concept; level=floor(i/18)
+const Q=`Ferris Wheel|Engineer Daniel|The visitors are ___ on the Ferris wheel.|riding|rode|ridden|ride
+Roller Coaster Ad|Marketer Mia|Come and enjoy our ___ roller coaster!|exciting|excited|excite|excites
+Ticket Booth|Seller Sam|We have ___ all the tickets for today’s magic show.|sold|selling|sell|sells
+Water Park|Lifeguard Lena|___ is my favourite activity at the water park.|Swimming|Swam|Swum|Swims
+Damaged Bench|Cleaner Omar|We need to replace the ___ bench.|broken|breaking|broke|break
+First Aid Centre|Nurse Priya|Some visitors have minor injuries. The nurse is helping the ___.|injured|injures|injure|injuring
+Popcorn Stall|Chef Ben|The worker is ___ some popcorn.|making|made|makes|make
+Magic Show|Magician Max|The magician is performing an ___ trick.|amazing|amazed|amaze|amazes
+Park Cleaning|Cleaner Rosa|The cleaners have ___ the entrance.|cleaned|cleaning|clean|cleans
+Dance Plaza|Dancer Kai|The children enjoy ___ to music at the entertainment plaza.|dancing|danced|dances|dance
+Food Stall|Chef Lily|A visitor wants chicken already cooked in hot oil. “I would like some ___ chicken, please.”|fried|fry|fries|frying
+Shuttle Bus|Driver Hana|A shuttle bus has stopped working. Another bus will collect the ___.|stranded|strand|stranding|strands
+Carousel|Operator Joe|The carousel is ___ slowly.|turning|turned|turns|turn
+Helping a Family|Mother Aisha|A mother is looking for her upset child. “Can you see the ___ baby near the fountain?”|crying|cried|cries|cry
+Ice Cream Stall|Vendor Tom|The customers have ___ all the chocolate ice cream.|eaten|eating|ate|eats
+Art Corner|Artist Zoe|___ pictures helps children express their creativity.|Painting|Painted|Paints|Paint
+Prize Counter|Clerk Ravi|The employee has finished wrapping the prizes. “The ___ gifts are ready for the winners.”|wrapped|wrapping|wrap|wraps
+Special Discounts|Info Officer Lim|The park offers special discounts to the ___ (people who stopped working because of their age).|retired|retiring|retire|retires
+Ride Inspection|Engineer Dana|The engineers were ___ the safety equipment when the lights went out.|checking|checked|check|checks
+Park Map|Visitor Mr Chen|Many visitors complained about the ___ directions on the map.|confusing|confused|confuse|confuses
+Photography Booth|Photographer Eli|Our photographer has ___ more than 200 pictures today.|taken|taking|took|takes
+Swimming Lessons|Parent Mrs Tan|My daughter is interested in ___.|swimming|swum|swims|swam
+Employee Rest Area|Supervisor Nora|The employees have been working since early morning. “Let the ___ workers take a break.”|exhausted|exhausting|exhaust|exhausts
+Safety Drill|Security Guard Raj|In the emergency drill, the rescue team must help those pretending to have injuries. They must help the ___ first.|wounded|wound|wounding|wounds
+Night Show|Performer Ivy|At eight o’clock tonight, the performers will be ___ on the main stage.|dancing|danced|dance|dances
+Haunted House|Child Ali|The children screamed when they saw the ___ monster decoration.|frightening|frightened|frighten|frightens
+Customer Feedback|Secretary Faye|The secretary has ___ an email to the unhappy customer.|written|wrote|writing|writes
+Game Booth|Booth Host Leo|___ tokens from different booths is part of the challenge.|Collecting|Collected|Collects|Collect
+Ticket Inspection|Gate Guard Ken|A visitor accidentally ripped his ticket. The employee could not scan the ___ ticket.|torn|tearing|tore|tear
+Senior Citizens’ Programme|Organiser Gina|Which sentence correctly refers to people who have retired?|We organise activities for the retired.|We organise activities for the retires.|We organise activities for the retiring yesterday.|We organise activities for the retire.|“The retired” is a past participle used like a noun for a group of people.
+Bad Weather|Worker Pablo|The maintenance workers are still ___ water from the outdoor stage.|removing|removed|remove|removes
+Performance Review|Manager Sue|The performance did not meet the audience’s expectations. It was a ___ performance.|disappointing|disappointed|disappoint|disappoints
+Missing Mechanic|Foreman Dev|The mechanic has ___ to the roller coaster to fix a problem.|gone|went|going|goes
+Attraction Design|Designer Uma|The designer enjoys ___ new rides for the theme park.|designing|designed|designs|design
+Dessert Stall|Chef Marco|The fruit has been kept below freezing overnight. Take the ___ fruit out of the freezer.|frozen|freezing|froze|freeze
+Transport Problem|Announcer Beth|The last shuttle has left and several visitors have no transport home. Which announcement is correct?|Please arrange transport for the stranded.|Please arrange transport for the strand.|Please arrange transport for the stranding.|Please arrange transport for the strands.|“The stranded” = people who are stuck. It is a past participle used like a noun.
+New Attraction|Engineer Wei|They have been ___ the new roller coaster since nine o’clock.|testing|tested|test|tests
+Visitor Experience|Visitor Mrs Lopez|It has been an ___ day, so many visitors are feeling ___.|exhausting; exhausted|exhausted; exhausting|exhausted; exhausted|exhausting; exhausting|The day causes tiredness (exhausting). The visitors feel tired (exhausted).
+Park Expansion|Builder Hugo|By the school holidays, the workers will have ___ the new water park.|built|building|build|builds
+Game Booth Improvement|Booth Host Pia|We can attract more visitors by ___ a wider variety of games.|introducing|introduced|introduces|introduce
+Safety Instructions|Safety Officer Ann|Some visitors do not understand the verbal instructions. Please provide clear ___ instructions at every ride.|written|writing|wrote|writes
+Emergency Plan|Nurse Chloe|In an emergency, the first aid team must assist the injured. What does “the injured” refer to?|People who have been injured.|People who cause injuries.|The action of injuring someone.|The equipment used to treat injuries.|“The injured” is a past participle used like a noun: it means people who have been injured.
+Incident Investigation|Security Chief Zack|The performers were ___ the audience when a visitor noticed his wallet was missing.|entertaining|entertained|entertain|entertains
+Misleading Advertisement|Marketer Olu|An advert says all rides are free, but visitors still pay for some. The manager removes the ___ advertisement.|misleading|misled|mislead|misleads
+Opening Problem|Ticket Seller Ria|The ticket booth could not open because an employee left the key at home. She realised she had ___ the key.|forgotten|forgot|forgetting|forgets
+Art Corner Review|Teacher Ms Kaur|Painting is the children’s favourite activity. How is “Painting” used here?|As a noun referring to an activity.|As an adjective describing the children.|As part of a continuous verb form.|As a past participle.|Here “Painting” is the subject, naming an activity, so it works as a noun (a gerund).
+Visitor Navigation|Guide Tariq|Several visitors have misunderstood the directions and walked to the wrong place. Help the ___ visitors find their way.|confused|confusing|confuse|confuses
+Transport Report|Manager Fred|A shuttle bus has broken down, leaving passengers waiting outside. Which sentence refers to them as a group?|The manager has arranged another bus for the stranded.|The manager has arranged another bus for the strand.|The manager has arranged another bus for the strands.|The manager has arranged another bus for the stranding.|“The stranded” = the passengers who are stuck: a past participle used like a noun.
+Special Performance|Singer Stella|At this time tomorrow, the famous singer will be ___ in front of thousands of visitors.|performing|performed|performs|perform
+Evening Decorations|Lighting Tech Yuki|“The flashing lights make the Ferris wheel look magical.” What is the job of “flashing”?|It acts as an adjective describing the lights.|It acts as a noun naming an activity.|It forms a continuous verb with “are”.|It is part of a perfect verb form.|“Flashing” sits before the noun “lights” and describes them, so it acts as an adjective.
+Grand Parade|Parade Leader Cass|The signal bell has ___, so the performers are ready to begin.|rung|rang|ringing|rings
+Long Queues|Planner Dina|We can reduce the waiting time by ___ another ticket booth.|opening|opened|opens|open
+Storm Damage|Engineer Rob|A storm has damaged several outdoor attractions. Which sentence correctly describes the equipment?|The damaged equipment must be repaired before the park reopens.|The damaging equipment must be repaired before the park reopens.|The damage equipment must be repaired before the park reopens.|The damages equipment must be repaired before the park reopens.|“Damaged” is a past participle used as an adjective: the equipment has been damaged.
+Community Programme|Organiser Hope|Which sentence uses a past participle as a noun-like expression for a group of people?|The retired enjoy visiting the park in the morning.|The manager has retired from his position.|The retired employee visited the park yesterday.|The employee retired last year.|“The retired” has no noun after it and means a group of people. In the others, “retired” is a verb or describes “employee”.`.split("\n").map((l,i)=>{const p=l.split("|");return{id:i+1,lv:Math.floor(i/18),cn:i%6,loc:p[0],npc:p[1],stem:p[2],ans:p[3],opts:p.slice(3,7),ex:p[7]}});
+const REW=[20,25,30,15,30,20];
+const LV=[{n:"Junior Park Manager",coins:100,hap:70,build:2},{n:"Theme Park Supervisor",coins:200,hap:80,build:3},{n:"Theme Park Tycoon",coins:300,hap:90,build:4}];
+const SHOP=[["Flower garden",30,4,"#e65a8d"],["Picnic area",40,4,"#c0392b"],["Popcorn stall",60,5,"#e74c3c"],["Ice cream shop",80,6,"#4db6e6"],["Carousel",100,8,"#a05ad6"],["Art corner",120,8,"#2ea86b"]];
+const PLOTS=[];for(let r=0;r<2;r++)for(let k=0;k<3;k++)PLOTS.push({x:340+k*560,y:440+r*300,b:null});
+const WW=1900,WH=1150;let G,keys={},cam={x:0,y:0,z:1.25},ov=0,place=null,snd=true,last=0,fx=[],shake=0;
+const rnd=(a,b)=>a+Math.random()*(b-a),sh=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+const SK=["#f1c9a0","#d9a066","#8d5a3b","#f6d7b8"],HC=["#2b1b10","#5a3418","#c9a227","#111","#7a2f1a"];
+function stations(l){return Q.filter(q=>q.lv==l).map((q,i)=>({q,x:200+i%6*300,y:240+(i/6|0)*300,sol:false,st:{att:0,h:0},sk:SK[i%4],hc:HC[i%5],cl:`hsl(${i*47%360},55%,50%)`}))}
+function newGame(l,name){const L=LV[l];G={lv:l,name:name||"My Park",coins:L.coins,stars:0,pass:0,px:WW/2,py:100,dir:2,wt:0,moving:0,sts:stations(l),vis:[],t:0,hist:{},cs:CONC.map(()=>({n:0,ind:0,ok:0})),done:false,keep:false,ft:0};
+PLOTS.forEach(p=>p.b=null);for(let i=0;i<10;i++)addVis();deco();}
+function addVis(){G.vis.push({x:rnd(80,WW-80),y:[330,630,930][Math.random()*3|0],tx:0,ty:0,sp:rnd(25,45),sk:SK[Math.random()*4|0],hc:HC[Math.random()*5|0],cl:`hsl(${Math.random()*360|0},60%,55%)`,t:Math.random()*9,k:Math.random()<.3,hp:true});}
+let TR=[];function deco(){TR=[];let n=0;while(TR.length<46&&n++<900){const x=rnd(30,WW-30),y=rnd(30,WH-20);if(!free(x,y,38))continue;TR.push({x,y,s:rnd(.8,1.3),f:Math.random()<.35})}}
+function free(x,y,r){for(const s of G.sts)if(Math.abs(x-s.x)<70+r&&Math.abs(y-s.y)<70+r)return false;for(const p of PLOTS)if(Math.abs(x-p.x)<70+r&&Math.abs(y-p.y)<60+r)return false;for(const y0 of[330,630,930])if(Math.abs(y-y0)<40+r)return false;if(y<150&&Math.abs(x-WW/2)<120)return false;return true}
+function happy(){let h=38+G.sts.filter(s=>s.sol).length*2+PLOTS.reduce((a,p)=>a+(p.b&&p.b.done?SHOP[p.b.i][2]:0),0);return Math.min(100,h)}
+function builds(){return PLOTS.filter(p=>p.b).length}
+function solved(){return G.sts.filter(s=>s.sol).length}
+function hud(){const L=LV[G.lv],h=happy();$("hud").innerHTML=`<span class=pill>🏞 ${G.name}</span><span class=pill>🪙 ${G.coins}</span><span class=pill>⭐ ${G.stars}</span><span class=pill>👥 ${G.vis.length}</span><span class=pill>😊 ${h}% (goal ${L.hap}%)</span><span class=pill>✅ ${solved()}/18 · 🏗 ${Math.min(builds(),L.build)}/${L.build}</span><button class=sm onclick=shop()>Shop (B)</button><button class=sm onclick=mapv()>Map (M)</button><button class=sm onclick=jour()>Journal (J)</button><button class=sm onclick="snd=!snd">🔊</button>`}
+function open(h){$("pn").innerHTML=h;$("ov").style.display="flex";ov=1}
+function close(){$("ov").style.display="none";ov=0;place&&place.pick&&0;hud()}
+window.close2=close;
+function beep(f,d=.12,t="sine"){if(!snd)return;try{const a=beep.a||(beep.a=new AudioContext()),o=a.createOscillator(),g=a.createGain();o.type=t;o.frequency.value=f;g.gain.value=.05;o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+d)}catch(e){}}
+function title(){open(`<h2>🎡 THEME PARK TYCOON: PARTICIPLE WORLD</h2><i>Build your park. Welcome your visitors. Master your grammar.</i><p>“Welcome to your very own theme park! You have a few attractions, a small team of employees and a limited budget. Your mission is to turn this little park into the most exciting theme park in town!”</p>
+<p>Park name: <input id=pk value="Sunny Fun Park" maxlength=24 style="font:inherit;padding:4px"></p>
+${LV.map((l,i)=>`<button onclick="go(${i})" style="margin:3px">Level ${i+1}: ${l.n}</button>`).join("<br>")}
+<p><button class=sm onclick=how()>How to play</button></p>`)}
+function how(){open(`<h2>How to play</h2><p>Walk with <b>WASD / arrows</b> (or the on-screen pad). Walk up to a helper with a <b>❗</b> and press <b>E</b>. Answer the grammar question to fix problems and earn 🪙 and ⭐. <b>B</b> shop, <b>M</b> map, <b>J</b> journal. Buy attractions with your coins and click a golden plot to build. Wrong answers are fine: just try again, or press Hint.</p><p><b>Win:</b> finish all 18 encounters, build enough attractions and reach the happiness goal.</p><button onclick=title()>Back</button>`)}
+function go(l){newGame(l,$("pk").value.trim());close();cam.z=1.25;}
+function near(){let b=null,bd=75;for(const s of G.sts){const d=Math.hypot(G.px-s.x,G.py-(s.y+58));if(d<bd){bd=d;b=s}}return b}
+function ask(s){const q=s.q;s.shown=sh(q.opts);s.msg="";s.wrong={};openQ(s)}
+function openQ(s,fb){const q=s.q,st=s.st;open(`<div class=nm>🧑 ${q.npc} <small>· ${q.loc}</small></div><p><i>${s.sol?"Thanks, boss!":"“Boss! Can you help me?”"}</i></p><p style="font-size:19px"><b>${q.stem.replace("___","<u>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</u>")}</b></p>
+${s.shown.map((o,i)=>`<button class="opt ${s.sol&&o==q.ans?"ok":s.wrong[o]?"bad":""}" ${s.sol?"disabled":""} onclick="pick(${G.sts.indexOf(s)},${i})">${"ABCD"[i]}. ${o}</button>`).join("")}
+<p>${fb||""}</p>${s.sol?"":`<button class=sm onclick="hint(${G.sts.indexOf(s)})">💡 Hint</button> `}<button class=sm onclick="close2()">Leave</button>`)}
+function expl(q){return q.ex||EXP[q.cn].replace("{a}",q.ans)}
+function pick(i,k){const s=G.sts[i],q=s.q,o=s.shown[k];if(s.sol)return;const c=G.cs[q.cn];
+if(o==q.ans){if(!s.counted){c.n++;if(!s.st.att&&!s.st.h)c.ind++;c.ok++;s.counted=1}
+const stars=!s.st.att&&!s.st.h?3:s.st.att<=1?2:1,coin=REW[q.cn];G.stars+=stars;G.coins+=coin;s.sol=true;s.t0=G.t;beep(660);setTimeout(()=>beep(880),120);
+fx.push({x:s.x,y:s.y-60,t:"+"+coin+"🪙"});
+openQ(s,`✅ <b>Correct!</b> ${q.stem.replace("___","<b>"+q.ans+"</b>")}<br>${expl(q)}<br><b>+${coin} coins, +${stars} ⭐</b> — look at the park!`);hud();chk()}
+else{s.st.att++;s.wrong[o]=1;beep(200,.2,"square");openQ(s,`❌ Not quite. ${hintFor(q,s.st.att)} Try again!`)}}
+function hintFor(q,n){return n>1?"Remember: "+HINTS[q.cn][1]:HINTS[q.cn][0]}
+function hint(i){const s=G.sts[i];s.st.h=Math.min(3,s.st.h+1);openQ(s,"💡 Hint "+s.st.h+": "+HINTS[s.q.cn][s.st.h-1])}
+function chk(){const L=LV[G.lv];if(!G.done&&solved()==18&&builds()>=L.build&&happy()>=L.hap){G.done=true;setTimeout(report,1500)}}
+function report(){const n=G.cs.reduce((a,c)=>a+c.ind,0),tot=G.cs.reduce((a,c)=>a+c.ok,0),rows=G.cs.map((c,i)=>{const pct=c.n?Math.round(c.ind/c.n*100):0;return`<tr><td>${CONC[i]}</td><td>${c.ind}/${c.n} first try, no hints</td><td>${c.n&&c.ind==c.n?"✅ Strong":c.ind/c.n>=.5?"🟡 Practise more":"🔴 Revise"}</td></tr>`}).join("");
+open(`<h2>🎉 CONGRATULATIONS! YOUR THEME PARK IS A SUCCESS!</h2><p>Coins left: <b>${G.coins}</b> · Attractions built: <b>${builds()}</b> · Visitors: <b>${G.vis.length}</b> · Happiness: <b>${happy()}%</b><br>Questions completed: <b>${solved()}</b> · Independent first-attempt accuracy: <b>${Math.round(n/18*100)}%</b> (${n}/18) · Grammar Stars: <b>${G.stars}</b></p><table style="font-size:14px;width:100%;border-collapse:collapse">${rows}</table><p style="font-size:14px">A concept is “strong” only when every question was right on the first try without hints. Otherwise, revise it.</p>
+<button onclick="go2(${G.lv})">Play Again</button> <button onclick="G.keep=true;close2()">Keep Managing</button> ${G.lv<2?`<button onclick="go2(${G.lv+1})">Next Level</button>`:""}`);fx.length=0;for(let i=0;i<80;i++)fx.push({fw:1,x:rnd(200,WW-200),y:rnd(100,500),vx:rnd(-60,60),vy:rnd(-120,-20),c:`hsl(${Math.random()*360},90%,60%)`,l:rnd(1,3)})}
+function go2(l){const nm=G.name;newGame(l,nm);close();cam.z=1.25}
+function shop(){if(ov)return;const L=LV[G.lv];open(`<h2>🏗 Attraction Shop</h2><p>🪙 ${G.coins} — buy, then click a golden plot in the park.</p><div class=shop>${SHOP.map((s,i)=>`<div class=it><svg width=60 height=44 viewBox="0 0 60 44"><rect x=6 y=16 width=48 height=26 rx=4 fill="#fff3d6" stroke="#8a6a3a"/><path d="M2 18 L30 2 L58 18Z" fill="${s[3]}"/></svg><br><b>${s[0]}</b><br>${s[1]} 🪙 · +${s[2]}% happiness<br><button class=sm ${G.coins<s[1]||!PLOTS.some(p=>!p.b)?"disabled":""} onclick="startPlace(${i})">${G.coins<s[1]?"Need "+(s[1]-G.coins)+" more":"Buy"}</button></div>`).join("")}</div><p><button onclick="close2()">Close</button></p>`)}
+function startPlace(i){place={i,plot:null};close();bar()}
+function bar(){const t=$("tip");t.style.display="block";t.style.bottom="110px";t.innerHTML=place.plot?`Place ${SHOP[place.i][0]} here? <button class=sm onclick=conf()>Confirm</button> <button class=sm onclick=canc()>Cancel</button>`:`Click an empty golden plot to preview. <button class=sm onclick=canc()>Cancel</button>`}
+function canc(){place=null;$("tip").style.display="none"}
+function conf(){const p=place.plot,s=SHOP[place.i];if(G.coins<s[1]||p.b){canc();return}G.coins-=s[1];p.b={i:place.i,t0:G.t,done:false};beep(520);canc();hud()}
+function mapv(){if(ov)return;open(`<h2>🗺 Park Map</h2><svg viewBox="0 0 190 115" width="100%" style="background:#9bd36b;border-radius:10px">${G.sts.map(s=>`<rect x=${s.x/10-4} y=${s.y/10-3} width=8 height=6 fill="${s.sol?s.cl:"#999"}"/>`).join("")}${PLOTS.map(p=>`<rect x=${p.x/10-5} y=${p.y/10-4} width=10 height=8 fill="${p.b?"#ffd24a":"none"}" stroke="#c8941a"/>`).join("")}<circle cx=${G.px/10} cy=${G.py/10} r=3 fill=red /></svg><p>Grey = needs help · colour = fixed · gold = building plots · red dot = you.</p><button onclick="close2()">Close</button>`)}
+function jour(){if(ov)return;const seen=new Set(G.sts.filter(s=>s.sol).map(s=>s.q.cn));const note=["Continuous: be + verb-ing. The visitors are riding the Ferris wheel. They have been repairing the bridge.","-ing adjectives describe what causes a feeling: an exciting ride. -ed adjectives show how people feel: the excited visitors.","Perfect: have/has/had + past participle. We have sold all the tickets. Irregular: eat→eaten, take→taken, write→written, break→broken, go→gone, build→built, ring→rung, forget→forgotten.","Gerund: an -ing word acting as a noun. Swimming is a popular activity. She enjoys painting.","Past participle adjectives: a broken machine, the exhausted visitors, torn tickets.","Past participle + the = group of people: the injured, the retired, the stranded. (Not every -ing or -ed word works this way!)"];
+open(`<h2>📖 Grammar Journal</h2>${CONC.map((c,i)=>seen.has(i)?`<p><b>${c}</b><br>${note[i]}</p>`:`<p>🔒 <b>${c}</b> — solve a matching encounter to unlock.</p>`).join("")}<button onclick="close2()">Close</button>`)}
+// ---------- drawing ----------
+function person(x,y,o,t,mv,dir){const w=mv?Math.sin(t*10)*3:0,b=mv?Math.abs(Math.sin(t*10))*1.5:0;X.fillStyle="#0003";X.beginPath();X.ellipse(x,y+1,9,4,0,0,7);X.fill();
+X.fillStyle="#334";X.fillRect(x-5,y-10+w*.3,4,10-w*.3);X.fillRect(x+1,y-10-w*.3,4,10+w*.3);X.fillStyle=o.cl;X.beginPath();X.roundRect(x-7,y-24-b,14,16,4);X.fill();
+if(o.apron){X.fillStyle="#fff";X.fillRect(x-4,y-20-b,8,11)}X.fillStyle=o.sk;X.beginPath();X.arc(x,y-30-b,7,0,7);X.fill();X.fillStyle=o.hc;X.beginPath();X.arc(x,y-32-b,7.2,Math.PI,0);X.fill();if(dir==0)X.fillRect(x-7,y-32-b,14,5);
+if(dir!=0){X.fillStyle="#222";const ex=dir==1?-2:dir==3?2:0;X.fillRect(x-3+ex,y-31-b,2,2);X.fillRect(x+1+ex,y-31-b,2,2)}
+if(o.hat){X.fillStyle=o.hat;X.fillRect(x-8,y-37-b,16,4);X.fillRect(x-5,y-42-b,10,6)}}
+function tree(x,y,s,f,t){X.fillStyle="#0002";X.beginPath();X.ellipse(x+8,y+4,26*s,9*s,0,0,7);X.fill();X.fillStyle="#6b4423";X.fillRect(x-4*s,y-26*s,8*s,28*s);const sw=Math.sin(t*1.2+x)*2;
+for(const[dx,dy,r,c]of[[-14,-38,20,"#2f8f46"],[14,-40,20,"#2f8f46"],[0,-56,24,"#3fae58"],[0,-42,18,"#4cc267"]]){X.fillStyle=c;X.beginPath();X.arc(x+dx*s+sw,y+dy*s,r*s,0,7);X.fill()}if(f){X.fillStyle="#ff7aa8";for(let i=0;i<4;i++){X.beginPath();X.arc(x+Math.cos(i*2)*14*s+sw,y-44*s+Math.sin(i*3)*10*s,3,0,7);X.fill()}}}
+function stall(s,t){const x=s.x,y=s.y,on=s.sol,c=on?s.cl:"#8c8c8c";X.fillStyle="#0003";X.beginPath();X.ellipse(x+6,y+38,52,10,0,0,7);X.fill();X.fillStyle=on?"#fff3d6":"#c9c3b5";X.fillRect(x-42,y-20,84,56);X.strokeStyle="#6b5230";X.lineWidth=2;X.strokeRect(x-42,y-20,84,56);
+X.fillStyle=on?"#8a5a2a":"#6d675c";X.fillRect(x-30,y+8,60,10);X.fillStyle=c;X.beginPath();X.moveTo(x-50,y-18);X.lineTo(x,y-44);X.lineTo(x+50,y-18);X.fill();X.fillStyle="#ffffffaa";for(let i=-4;i<5;i+=2){X.beginPath();X.moveTo(x+i*10,y-18);X.lineTo(x+i*10+10,y-18);X.lineTo(x,y-44);X.fill()}
+X.fillStyle="#fff";X.font="bold 10px sans-serif";X.textAlign="center";X.fillStyle="#2a1a00";X.fillText(s.q.loc.slice(0,16),x,y+30);
+if(on){const f=Math.sin(t*5)*3;for(let i=0;i<6;i++){X.fillStyle=["#f55","#fc3","#5c5","#59f"][i%4];X.beginPath();X.arc(x-40+i*16,y-14+f*((i%2)?1:-1)*.3,3,0,7);X.fill()}
+const k=s.q.cn;if(k==0||k==3){X.strokeStyle="#fff8";X.beginPath();X.arc(x,y-60,12,t*2,t*2+4);X.stroke()}}else{X.strokeStyle="#c33";X.lineWidth=3;X.beginPath();X.moveTo(x-20,y-4);X.lineTo(x+20,y-4);X.stroke()}}
+function built(p,t){const b=p.b,s=SHOP[b.i],x=p.x,y=p.y,pr=Math.min(1,(G.t-b.t0)/2.2);if(pr>=1&&!b.done){b.done=true;beep(784);hud();chk();for(let i=0;i<6;i++)addVis()}
+X.fillStyle="#0003";X.beginPath();X.ellipse(x+5,y+36,56,11,0,0,7);X.fill();
+if(!b.done){X.fillStyle="#b88a4a";X.fillRect(x-45,y+20,90,16);X.strokeStyle="#e8b030";X.lineWidth=3;for(let i=0;i<4;i++){X.beginPath();X.moveTo(x-40+i*26,y+36);X.lineTo(x-40+i*26,y+36-50*pr);X.stroke()}X.fillStyle="#fa3";X.fillRect(x-20,y-30-Math.sin(t*8)*3,40,6);return}
+if(b.i==0){X.fillStyle="#5a9e3d";X.fillRect(x-48,y,96,34);for(let i=0;i<14;i++){X.fillStyle=["#ff6aa0","#ffd34a","#fff","#c07aff"][i%4];X.beginPath();X.arc(x-42+i%7*14,y+8+(i/7|0)*16+Math.sin(t*2+i)*1.2,5,0,7);X.fill()}return}
+if(b.i==1){X.fillStyle="#fff";X.fillRect(x-45,y+4,90,30);X.fillStyle="#c0392b";for(let i=0;i<8;i++)if(i%2)X.fillRect(x-45+i*11.2,y+4,11.2,30);X.fillStyle="#8a5a2a";X.fillRect(x-45,y-8,6,20);X.fillRect(x+39,y-8,6,20);return}
+if(b.i==4){X.fillStyle="#d9b38c";X.beginPath();X.ellipse(x,y+26,50,16,0,0,7);X.fill();for(let i=0;i<4;i++){const a=t*1.5+i*1.57;X.fillStyle="#fff";X.fillRect(x+Math.cos(a)*30-3,y+Math.sin(a)*8-6,6,28);X.fillStyle=s[3];X.beginPath();X.ellipse(x+Math.cos(a)*30,y+Math.sin(a)*8+6,8,6,0,0,7);X.fill()}X.fillStyle=s[3];X.beginPath();X.moveTo(x-56,y-4);X.lineTo(x,y-36);X.lineTo(x+56,y-4);X.fill();return}
+X.fillStyle="#fff3d6";X.fillRect(x-42,y-6,84,42);X.fillStyle=s[3];X.beginPath();X.moveTo(x-52,y-4);X.lineTo(x,y-34);X.lineTo(x+52,y-4);X.fill();X.fillStyle="#2a1a00";X.font="bold 10px sans-serif";X.textAlign="center";X.fillText(s[0],x,y+28)}
+function solid(x,y){if(x<12||y<30||x>WW-12||y>WH-8)return true;for(const s of G.sts)if(x>s.x-46&&x<s.x+46&&y>s.y-22&&y<s.y+38)return true;for(const p of PLOTS)if(p.b&&x>p.x-48&&x<p.x+48&&y>p.y-10&&y<p.y+38)return true;return false}
+function draw(){const W=C.width,H=C.height,z=cam.z,t=G.t;X.setTransform(1,0,0,1,0,0);X.fillStyle="#7cc255";X.fillRect(0,0,W,H);const tx=G.px-W/2/z,ty=G.py-H/2/z-30;cam.x+=(Math.max(0,Math.min(WW-W/z,tx))-cam.x)*.15;cam.y+=(Math.max(0,Math.min(WH-H/z,ty))-cam.y)*.15;
+if(W/z>WW)cam.x=(WW-W/z)/2;if(H/z>WH)cam.y=(WH-H/z)/2;X.setTransform(z,0,0,z,-cam.x*z,-cam.y*z);
+X.fillStyle="#6fb34a";for(let i=0;i<60;i++){X.beginPath();X.ellipse((i*397)%WW,(i*251)%WH,60,28,0,0,7);X.fill()}
+X.fillStyle="#e8d29b";for(const y0 of[330,630,930]){X.beginPath();X.roundRect(20,y0-24,WW-40,48,24);X.fill()}X.beginPath();X.roundRect(WW/2-26,40,52,300,20);X.fill();X.fillStyle="#d8bf80";X.fillRect(WW/2-40,70,80,10);
+X.fillStyle="#3b8fd9";X.beginPath();X.ellipse(150,1060,90,40,0,0,7);X.fill();X.fillStyle="#bfe6ff";X.beginPath();X.ellipse(150+Math.sin(t)*6,1058,50+Math.sin(t*2)*4,14,0,0,7);X.fill();X.fillStyle="#fff9";X.fillRect(145,1010+Math.sin(t*6)*3,10,30);
+X.fillStyle="#fff";X.fillRect(WW/2-110,60,220,26);X.fillStyle="#c0392b";X.font="bold 15px sans-serif";X.textAlign="center";X.fillText("★ "+G.name+" ★",WW/2,78);
+for(const p of PLOTS)if(!p.b){X.strokeStyle=place?"#ffcc00":"#d9a82e";X.lineWidth=place?4:2;X.setLineDash([8,6]);X.strokeRect(p.x-50,p.y-14,100,56);X.setLineDash([]);if(place&&place.plot==p){X.globalAlpha=.7;built({x:p.x,y:p.y,b:{i:place.i,done:true,t0:0}},t);X.globalAlpha=1}}
+const D=[];for(const r of TR)D.push({y:r.y,f:()=>tree(r.x,r.y,r.s,r.f,t)});for(const s of G.sts){D.push({y:s.y+38,f:()=>stall(s,t)});const mv=!s.sol,ny=s.y+58;D.push({y:ny,f:()=>{person(s.x,ny,{cl:s.cl,sk:s.sk,hc:s.hc,apron:s.q.cn%2==0,hat:s.q.cn==4?"#f5c518":null},t,s.sol&&Math.sin(t+s.x)>.7,2);if(!s.sol){X.fillStyle="#f33";X.font="bold 22px sans-serif";X.textAlign="center";X.fillText("❗",s.x,ny-48+Math.sin(t*5)*3)}if(near()==s&&!ov){X.strokeStyle="#fff";X.lineWidth=2;X.beginPath();X.ellipse(s.x,ny,16,7,0,0,7);X.stroke()}}})}
+for(const p of PLOTS)if(p.b)D.push({y:p.y+38,f:()=>built(p,t)});
+for(const v of G.vis)D.push({y:v.y,f:()=>person(v.x,v.y,{cl:v.cl,sk:v.sk,hc:v.hc},v.t,v.mv,v.dir||2)});
+D.push({y:G.py,f:()=>person(G.px,G.py,{cl:"#e8453c",sk:"#f1c9a0",hc:"#3a2312",hat:"#2a6fd6"},G.wt,G.moving,G.dir)});D.sort((a,b)=>a.y-b.y);for(const d of D)d.f();
+X.font="bold 14px sans-serif";X.textAlign="center";for(const f of fx){if(f.fw){X.fillStyle=f.c;X.fillRect(f.x,f.y,4,4)}else{X.fillStyle="#fff";X.strokeStyle="#a60";X.lineWidth=3;X.strokeText(f.t,f.x,f.y);X.fillText(f.t,f.x,f.y)}}}
+function step(ts){const dt=Math.min(.05,(ts-last)/1000||0);last=ts;if(G){G.t+=dt;
+if(!ov){let dx=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0),dy=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0);G.moving=dx||dy;
+if(G.moving){const m=Math.hypot(dx,dy),sp=150*dt;const nx=G.px+dx/m*sp,ny=G.py+dy/m*sp;if(!solid(nx,G.py))G.px=nx;if(!solid(G.px,ny))G.py=ny;G.wt+=dt;G.dir=Math.abs(dx)>Math.abs(dy)?(dx<0?1:3):dy<0?0:2}
+if(solid(G.px,G.py)){let ok=false;for(let r=4;r<260&&!ok;r+=4)for(let a=0;a<16;a++){const nx=G.px+Math.cos(a*.3927)*r,ny=G.py+Math.sin(a*.3927)*r;if(!solid(nx,ny)){G.px=nx;G.py=ny;ok=true;break}}if(!ok){G.px=WW/2;G.py=100}}
+for(const v of G.vis){v.t+=dt;if(Math.hypot(v.tx-v.x,v.ty-v.y)<4){v.tx=rnd(40,WW-40);v.ty=[330,630,930][Math.random()*3|0]+rnd(-12,12);}const a=Math.atan2(v.ty-v.y,v.tx-v.x);v.x+=Math.cos(a)*v.sp*dt;v.y+=Math.sin(a)*v.sp*dt*.6;v.mv=1;v.dir=Math.cos(a)>0?3:1}
+G.ft+=dt;if(G.ft>20){G.ft=0;const nb=PLOTS.filter(p=>p.b&&p.b.done).length;if(nb&&G.pass<60){const g=Math.min(nb*2,60-G.pass);G.pass+=g;G.coins+=g;hud()}}
+const n=near(),t=$("tip");if(!place){t.style.display=n&&!ov?"block":"none";t.style.bottom="90px";if(n)t.textContent=(n.sol?"✔ ":"Press E · ")+n.q.npc}}
+fx=fx.filter(f=>{if(f.fw){f.x+=f.vx*dt;f.y+=f.vy*dt;f.vy+=60*dt;f.l-=dt;return f.l>0}f.y-=20*dt;f.t0=(f.t0||0)+dt;return f.t0<1.4});
+if(G.done&&Math.random()<.2)fx.push({fw:1,x:rnd(200,WW-200),y:rnd(100,500),vx:rnd(-60,60),vy:rnd(-120,-20),c:`hsl(${Math.random()*360},90%,60%)`,l:2});
+draw()}requestAnimationFrame(step)}
+function resize(){C.width=innerWidth;C.height=innerHeight}resize();addEventListener("resize",resize);
+function act(){if(!G||ov)return;const n=near();if(n)ask(n)}
+addEventListener("keydown",e=>{const k=e.key.toLowerCase();keys[k]=1;if(k=="escape"&&ov&&G)close();if(!G||ov&&k!="b"&&k!="m"&&k!="j")return;if(k=="e")act();if(k=="b")shop();if(k=="m")mapv();if(k=="j")jour();if(k.startsWith("arrow")||k==" ")e.preventDefault()});
+addEventListener("keyup",e=>keys[e.key.toLowerCase()]=0);addEventListener("blur",()=>keys={});
+[["bu","w"],["bl","a"],["bd","s"],["br","d"]].forEach(([id,k])=>{const b=$(id);const on=e=>{e.preventDefault();keys[k]=1},off=()=>keys[k]=0;b.onpointerdown=on;b.onpointerup=off;b.onpointerleave=off;b.onpointercancel=off});
+$("be").onclick=act;$("bz").onclick=()=>cam.z=Math.min(1.5,cam.z+.15);$("bzo").onclick=()=>cam.z=Math.max(.6,cam.z-.15);
+C.addEventListener("click",e=>{if(!G||!place)return;const r=C.getBoundingClientRect(),wx=(e.clientX-r.left)/cam.z+cam.x,wy=(e.clientY-r.top)/cam.z+cam.y;const p=PLOTS.find(p=>!p.b&&Math.abs(wx-p.x)<56&&Math.abs(wy-p.y)<40);if(p){place.plot=p;bar()}});
+// self-check of the question bank
+(function(){const ok=[0,1,2].every(l=>Q.filter(q=>q.lv==l).length==18)&&Q.length==54&&Q.every(q=>q.opts.length==4&&new Set(q.opts).size==4&&q.ans==q.opts[0])&&[0,1,2].every(l=>[0,1,2,3,4,5].every(c=>Q.filter(q=>q.lv==l&&q.cn==c).length==3));console.log("Question bank check:",ok?"OK (54 = 3x18, 3 per concept per level)":"FAILED")})();
+// ===== VISUAL POLISH PASS =====
+let GR=null,DC=[];
+const sh2=(x,y,w,h,a=.28)=>{X.fillStyle="rgba(15,35,10,"+a+")";X.beginPath();X.ellipse(x,y,w,h,0,0,7);X.fill()};
+const FC=["#ff6aa0","#ffd34a","#fff","#c07aff","#ff8a3a","#6ad0ff"];
+function pth(g,x1,y1,x2,y2){g.lineCap="round";for(const[w,c]of[[64,"#7d6140"],[58,"#b08f58"],[52,"#e3ca95"],[40,"#ecd6a6"]]){g.strokeStyle=c;g.lineWidth=w;g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.stroke()}
+g.strokeStyle="#7d614033";g.lineWidth=1;const n=Math.hypot(x2-x1,y2-y1)/26|0;for(let i=1;i<n;i++){const u=i/n,px=x1+(x2-x1)*u,py=y1+(y2-y1)*u;g.beginPath();if(x1==x2){g.moveTo(px-24,py);g.lineTo(px+24,py)}else{g.moveTo(px,py-24);g.lineTo(px,py+24)}g.stroke()}}
+function mkGround(){const c=document.createElement("canvas");c.width=WW;c.height=WH;const g=c.getContext("2d");let sd=11;const R=(a,b)=>{sd=sd*16807%2147483647;return a+sd/2147483647*(b-a)};
+g.fillStyle="#4f9b40";g.fillRect(0,0,WW,WH);
+for(let i=0;i<170;i++){g.fillStyle=["#468f38","#5aa84a","#4a9640","#62b050"][i%4]+"99";g.beginPath();g.ellipse(R(0,WW),R(0,WH),R(40,130),R(18,60),R(0,3),0,7);g.fill()}
+g.strokeStyle="#3a7f30";g.lineWidth=1.4;for(let i=0;i<2200;i++){const x=R(0,WW),y=R(0,WH);g.beginPath();g.moveTo(x,y);g.lineTo(x+R(-2,2),y-R(3,8));g.stroke()}
+for(let i=0;i<150;i++){const x=R(0,WW),y=R(0,WH);g.fillStyle=FC[i%6];g.beginPath();g.arc(x,y,2,0,7);g.fill()}
+for(const y of[330,630,930])pth(g,60,y,WW-60,y);pth(g,WW/2,60,WW/2,330);for(const x of[100,620,1180,1800])pth(g,x,330,x,930);
+g.fillStyle="#b08f58";g.beginPath();g.arc(WW/2,330,56,0,7);g.fill();g.fillStyle="#e9d29c";g.beginPath();g.arc(WW/2,330,50,0,7);g.fill();g.strokeStyle="#b08f5899";g.lineWidth=2;g.beginPath();g.arc(WW/2,330,32,0,7);g.stroke();
+for(let i=0;i<120;i++){g.fillStyle="#b08f5833";g.beginPath();g.ellipse(R(60,WW-60),[330,630,930][i%3]+R(-18,18),R(6,20),R(2,5),0,0,7);g.fill()}
+return c}
+function okd(x,y){for(const s of G.sts)if(Math.abs(x-s.x)<64&&Math.abs(y-s.y)<64||Math.hypot(x-s.x,y-s.y-58)<40)return false;for(const p of PLOTS)if(Math.abs(x-p.x)<72&&Math.abs(y-p.y)<62)return false;return true}
+function deco(){TR=[];DC=[];let n=0;
+while(TR.length<46&&n++<1500){const x=rnd(30,WW-30),y=rnd(30,WH-20);if(free(x,y,38))TR.push({x,y,s:rnd(.8,1.35),k:TR.length%3==1?1:0,f:Math.random()<.4})}
+DC.push({k:"fountain",x:WW/2-200,y:150,need:0},{k:"fountain",x:WW/2+200,y:150,need:0},{k:"flag",x:WW/2-95,y:80,need:0},{k:"flag",x:WW/2+95,y:80,need:0});
+const T=["lamp","bench","planter","bin","lamp","sign","bush"];let i=0;
+for(const y0 of[330,630,930])for(let x=60;x<WW-60;x+=130,i++){const yy=y0+(i%2?42:-42);if(okd(x,yy))DC.push({k:T[i%7],x,y:yy,need:0})}
+const K=["bush","flowers","rock","hedge","table","planter","flowers","flag","balloon","bush","flowers","rock"];n=0;let j=0;
+while(DC.length<190&&n++<2500){const x=rnd(30,WW-30),y=rnd(30,WH-20);if(!free(x,y,26))continue;DC.push({k:K[j%12],x,y,s:j,need:j>60?12:j>30?6:0});j++}}
+function look(s){if(s.lk)return s.lk;const n=s.q.npc,i=s.q.id,L={sk:s.sk,hc:s.hc,cl:s.cl,long:i%3==0};
+if(/Engineer|Mechanic|Foreman|Worker|Builder/.test(n)){L.cl="#f08a24";L.hat="#f5c518";L.pc="#2f3b52"}
+else if(/Chef|Vendor/.test(n)){L.cl="#fff";L.tall=1;L.apron=1}
+else if(/Nurse/.test(n)){L.cl="#e8f6fb";L.cross=1}
+else if(/Lifeguard/.test(n)){L.cl="#e23b3b";L.hat="#fff"}
+else if(/Cleaner/.test(n)){L.cl="#2b8cd6";L.vest=1;L.hat="#2b8cd6"}
+else if(/Dancer|Singer|Magician|Performer|Artist|Parade/.test(n)){L.cl=["#a23bd6","#d63b8a","#2bb3a0"][i%3];if(/Magician/.test(n)){L.hat="#222";L.cl="#222"}}
+else if(/Guard|Security|Officer/.test(n)){L.cl="#2e3d63";L.hat="#2e3d63"}
+else if(/Child/.test(n))L.sc=1.05;else if(/Mrs|Mr /.test(n))L.hc="#c8c8c8";
+return s.lk=L}
+function addVis(){const e=Math.random();G.vis.push({x:rnd(80,WW-80),y:[330,630,930][Math.random()*3|0],tx:0,ty:0,sp:rnd(25,45),sk:SK[Math.random()*4|0],hc:e<.12?"#cfcfcf":HC[Math.random()*5|0],cl:`hsl(${Math.random()*360|0},60%,55%)`,t:Math.random()*9,long:Math.random()<.45,hat:Math.random()<.25?["#e8453c","#2a6fd6","#f5c518"][Math.random()*3|0]:null,sc:Math.random()<.3?1.02:1.3,pc:["#3a4a6b","#6b4a3a","#2f6b4a"][Math.random()*3|0]})}
+function person(x,y,o,t,mv,dir){const s=o.sc||1.35,w=mv?Math.sin(t*10):0,b=mv?Math.abs(Math.sin(t*10))*1.5:0;sh2(x,y,10*s,4*s,.32);X.save();X.translate(x,y);X.scale(s,s);
+X.fillStyle=o.pc||"#3a4a6b";X.fillRect(-5,-11+w*.8,4.5,11-w*.8);X.fillRect(.5,-11-w*.8,4.5,11+w*.8);X.fillStyle="#222";X.fillRect(-5.5,-2+w*.8,5.5,3);X.fillRect(0,-2-w*.8,5.5,3);
+X.fillStyle=o.cl;X.beginPath();X.roundRect(-7,-25-b,14,16,4);X.fill();X.fillStyle="#0002";X.fillRect(2,-24-b,5,15);
+X.fillStyle=o.cl;X.fillRect(-9.5,-24-b+w*1.5,3,10);X.fillRect(6.5,-24-b-w*1.5,3,10);X.fillStyle=o.sk;X.fillRect(-9.5,-14-b+w*1.5,3,3);X.fillRect(6.5,-14-b-w*1.5,3,3);
+if(o.apron){X.fillStyle="#f2f2f2";X.fillRect(-4,-21-b,8,12);X.fillStyle="#0001";X.fillRect(0,-21-b,4,12)}
+if(o.vest){X.fillStyle="#ffb300";X.fillRect(-7,-25-b,3.5,16);X.fillRect(3.5,-25-b,3.5,16)}
+if(o.cross){X.fillStyle="#e23";X.fillRect(-1,-22-b,2,6);X.fillRect(-3,-20-b,6,2)}
+X.fillStyle=o.sk;X.beginPath();X.arc(0,-31-b,7,0,7);X.fill();
+X.fillStyle=o.hc;if(dir==0){X.beginPath();X.arc(0,-31-b,7.3,0,7);X.fill()}else{X.beginPath();X.arc(0,-33-b,7.3,Math.PI,0);X.fill();if(o.long){X.fillRect(-7.3,-33-b,2.5,11);X.fillRect(4.8,-33-b,2.5,11)}}
+if(dir){const e=dir==1?-2.5:dir==3?2.5:0;X.fillStyle="#fff";X.fillRect(-4+e,-32-b,3,3);X.fillRect(1+e,-32-b,3,3);X.fillStyle="#222";X.fillRect(-3+e,-31-b,1.8,2);X.fillRect(2+e,-31-b,1.8,2);X.fillStyle="#b4503a";X.fillRect(-1.5+e,-27.5-b,3,1)}
+if(o.hat){X.fillStyle=o.hat;X.beginPath();X.arc(0,-35-b,7.4,Math.PI,0);X.fill();X.fillRect(dir==1?-11:dir==3?-4:-9,-35.5-b,dir==1||dir==3?15:18,2.5)}
+if(o.tall){X.fillStyle="#fff";X.fillRect(-5,-46-b,10,9);X.beginPath();X.arc(0,-46-b,6,Math.PI,0);X.fill()}
+X.restore()}
+function tree(x,y,s,f,t,k){sh2(x+10*s,y+3,28*s,9*s,.3);const sw=Math.sin(t*1.2+x)*1.8;X.fillStyle="#5a3a1c";X.fillRect(x-4*s,y-30*s,8*s,32*s);X.fillStyle="#7a5128";X.fillRect(x-4*s,y-30*s,4*s,32*s);
+if(k){for(let i=0;i<4;i++){const w=(30-i*5)*s,y0=y-30*s-i*16*s;X.fillStyle=["#1f6b3a","#278048","#2f9456","#38a863"][i];X.beginPath();X.moveTo(x-w,y0);X.lineTo(x+w,y0);X.lineTo(x+sw*(i/3),y0-28*s);X.fill()}return}
+for(const[a,b,r,c]of[[-16,-40,19,"#256f35"],[16,-42,19,"#256f35"],[0,-58,24,"#2f8f45"],[-8,-48,18,"#3aa352"],[10,-52,16,"#47b861"]]){X.fillStyle=c;X.beginPath();X.arc(x+a*s+sw,y+b*s,r*s,0,7);X.fill()}
+X.fillStyle="#8fe09a66";X.beginPath();X.arc(x-8*s+sw,y-64*s,9*s,0,7);X.fill();
+if(f)for(let i=0;i<6;i++){X.fillStyle=FC[i%3];X.beginPath();X.arc(x+Math.cos(i*2.1)*17*s+sw,y-50*s+Math.sin(i*3.3)*13*s,3,0,7);X.fill()}}
+function benchD(x,y,on,t){sh2(x+2,y+9,28,6);X.fillStyle="#444";X.fillRect(x-22,y,4,10);X.fillRect(x+18,y,4,10);
+if(on){X.fillStyle="#8a5a2a";X.fillRect(x-26,y-18,52,5);X.fillRect(x-26,y-6,52,6);X.fillStyle="#c08a4a";X.fillRect(x-26,y-6,52,2);X.fillRect(x-26,y-18,52,1.5)}
+else{X.save();X.translate(x,y);X.fillStyle="#7a5a3a";X.save();X.rotate(.14);X.fillRect(-26,-6,24,6);X.restore();X.save();X.rotate(-.35);X.fillRect(2,-12,26,6);X.restore();X.fillStyle="#7a5a3a";X.fillRect(-26,-20,20,5);X.restore();X.strokeStyle="#d33";X.lineWidth=2;X.beginPath();X.moveTo(x-8,y-14);X.lineTo(x+4,y-4);X.moveTo(x+4,y-14);X.lineTo(x-8,y-4);X.stroke()}}
+function awn(x,y,w,c){const n=6,sw=w/n;for(let i=0;i<n;i++){X.fillStyle=i%2?"#fff":c;X.fillRect(x-w/2+i*sw,y,sw,10);X.beginPath();X.arc(x-w/2+(i+.5)*sw,y+10,sw/2,0,Math.PI);X.fill()}}
+function wheel(x,y,t,on){const a=on?t*.5:0;X.strokeStyle="#8a929c";X.lineWidth=4;X.beginPath();X.moveTo(x,y);X.lineTo(x-34,y+84);X.moveTo(x,y);X.lineTo(x+34,y+84);X.stroke();
+X.strokeStyle="#e04848";X.lineWidth=4;X.beginPath();X.arc(x,y,50,0,7);X.stroke();X.strokeStyle="#ffd34a";X.lineWidth=2;X.beginPath();X.arc(x,y,30,0,7);X.stroke();
+for(let i=0;i<8;i++){const g=a+i*Math.PI/4,px=x+Math.cos(g)*50,py=y+Math.sin(g)*50;X.strokeStyle="#ccd";X.lineWidth=1.5;X.beginPath();X.moveTo(x,y);X.lineTo(px,py);X.stroke();X.fillStyle=FC[i%6];X.fillRect(px-6,py,12,10);X.fillStyle="#fff8";X.fillRect(px-4,py+2,8,3)}
+X.fillStyle="#444";X.beginPath();X.arc(x,y,5,0,7);X.fill()}
+function coaster(x,y,t,on){const f=u=>y+10-36*Math.abs(Math.sin(u*Math.PI*2));X.strokeStyle="#a8b0ba";X.lineWidth=2;for(let u=0;u<=1;u+=.1){X.beginPath();X.moveTo(x-70+140*u,f(u));X.lineTo(x-70+140*u,y+34);X.stroke()}
+X.strokeStyle="#d9453a";X.lineWidth=4;X.beginPath();for(let u=0;u<=1.001;u+=.02)X.lineTo(x-70+140*u,f(u));X.stroke();const u=on?(t*.25)%1:.5;X.fillStyle=on?"#ffd34a":"#999";X.fillRect(x-70+140*u-8,f(u)-8,16,7);X.fillStyle="#fff";X.fillRect(x-70+140*u-6,f(u)-11,4,4);X.fillRect(x-70+140*u+1,f(u)-11,4,4)}
+function carousel(x,y,t,on){X.fillStyle="#e2c9a3";X.beginPath();X.ellipse(x,y+24,48,15,0,0,7);X.fill();const a=on?t*1.2:0;for(let i=0;i<5;i++){const g=a+i*1.2566,px=x+Math.cos(g)*30,py=y+Math.sin(g)*8;X.fillStyle="#d4af37";X.fillRect(px-1,py-4,2,26);X.fillStyle=FC[i];X.beginPath();X.ellipse(px,py+14,7,5,0,0,7);X.fill()}
+for(let i=0;i<6;i++){X.fillStyle=i%2?"#fff":"#9a4fd1";X.beginPath();X.moveTo(x-54+i*18,y-6);X.lineTo(x-36+i*18,y-6);X.lineTo(x,y-34);X.fill()}}
+function sfront(x,y,col,label,on,t,ic){const rf=on?col:"#9a9a9a";X.fillStyle=on?"#fff1d0":"#cfc8b8";X.fillRect(x-42,y-22,84,58);X.fillStyle="#0001";X.fillRect(x+24,y-22,18,58);X.strokeStyle="#6b5230";X.lineWidth=2;X.strokeRect(x-42,y-22,84,58);
+X.fillStyle=on?"#8fd3f4":"#8a9aa3";X.fillRect(x-32,y-2,64,18);X.fillStyle="#fff5";X.fillRect(x-30,y,18,5);X.fillStyle="#7a4b22";X.fillRect(x-36,y+14,72,8);X.fillStyle="#a86a30";X.fillRect(x-36,y+14,72,3);
+if(on&&ic){X.font="14px sans-serif";X.textAlign="center";X.fillText(ic,x-14,y+12);X.fillText(ic,x+14,y+12)}
+X.fillStyle=rf;X.beginPath();X.moveTo(x-52,y-26);X.lineTo(x,y-52);X.lineTo(x+52,y-26);X.fill();X.fillStyle="#fff3";X.beginPath();X.moveTo(x-52,y-26);X.lineTo(x,y-52);X.lineTo(x,y-46);X.lineTo(x-44,y-26);X.fill();awn(x,y-26,92,rf);
+X.fillStyle="#3b2a18";X.fillRect(x-38,y+24,76,12);X.fillStyle="#ffe9a8";X.font="bold 9px sans-serif";X.textAlign="center";X.fillText(label.slice(0,16),x,y+33)}
+const ICO={Popcorn:"🍿","Ice Cream":"🍦","Food Stall":"🍗","Dessert":"🍧"};
+function stall(s,t){const x=s.x,y=s.y,on=s.sol,L=s.q.loc;sh2(x+8,y+40,58,12,.3);
+if(/Bench/.test(L))return benchD(x,y+14,on,t);
+if(/Ferris/.test(L))wheel(x,y-84,t,on);if(/Roller/.test(L))coaster(x,y-56,t,on);
+sfront(x,y,s.cl,L,on,t,ICO[Object.keys(ICO).find(k=>L.includes(k))]);
+if(/Carousel/.test(L))carousel(x,y-44,t,on);
+if(/First Aid/.test(L)){X.fillStyle="#fff";X.fillRect(x-14,y-70,28,24);X.strokeStyle="#aaa";X.strokeRect(x-14,y-70,28,24);X.fillStyle="#e23";X.fillRect(x-3,y-67,6,18);X.fillRect(x-9,y-61,18,6)}
+if(!on){X.strokeStyle="#f5c518";X.lineWidth=5;X.beginPath();X.moveTo(x-46,y+8);X.lineTo(x+46,y-6);X.stroke();X.strokeStyle="#222";X.setLineDash([6,6]);X.stroke();X.setLineDash([]);X.fillStyle="#ff7a1a";X.beginPath();X.moveTo(x+50,y+38);X.lineTo(x+56,y+16);X.lineTo(x+62,y+38);X.fill()}
+else{for(let i=0;i<8;i++){X.fillStyle=FC[i%6];X.beginPath();X.arc(x-42+i*12,y-24+Math.sin(t*4+i)*1.5+Math.abs(i-3.5),2.5,0,7);X.fill()}
+X.strokeStyle="#6b4a2a";X.lineWidth=2;X.beginPath();X.moveTo(x-50,y+36);X.lineTo(x-50,y-40);X.stroke();X.fillStyle="#e8453c";X.beginPath();X.moveTo(x-50,y-40);for(let i=1;i<=6;i++)X.lineTo(x-50+i*4,y-40+Math.sin(t*6+i)*2+i*.5);X.lineTo(x-26,y-30);X.lineTo(x-50,y-28);X.fill();
+const by=Math.sin(t*2+s.q.id)*3;X.strokeStyle="#999";X.lineWidth=1;X.beginPath();X.moveTo(x+50,y+20);X.lineTo(x+52,y-26+by);X.stroke();X.fillStyle=FC[s.q.id%6];X.beginPath();X.ellipse(x+52,y-34+by,8,10,0,0,7);X.fill();
+if(G.t-s.t0<1.6){X.fillStyle="#fff7a8";for(let i=0;i<5;i++){const a=t*6+i*1.3;X.fillRect(x+Math.cos(a)*40,y-10+Math.sin(a)*26,4,4)}}}}
+function lot(p,t){const x=p.x,y=p.y;sh2(x,y+34,56,10,.18);X.fillStyle="#b79a6a";X.fillRect(x-52,y-16,104,56);X.fillStyle="#a58a5a";X.fillRect(x-46,y-10,92,44);X.strokeStyle="#fff9";X.lineWidth=1.5;X.setLineDash([6,5]);X.strokeRect(x-40,y-4,80,32);X.setLineDash([]);
+X.fillStyle="#8a5a2a";for(let i=-2;i<=2;i++){X.fillRect(x+i*24-2,y-20,4,12);X.fillRect(x+i*24-2,y+34,4,10)}X.fillRect(x-52,y-14,104,2.5);X.fillRect(x-52,y+38,104,2.5);
+X.fillStyle="#f5c518";X.fillRect(x-14,y-52,28,16);X.fillStyle="#222";X.font="bold 7px sans-serif";X.textAlign="center";X.fillText("BUILD",x,y-44);X.fillText("HERE",x,y-38);X.fillStyle="#6b4a2a";X.fillRect(x-1,y-36,2,22);
+X.fillStyle="#ff7a1a";X.beginPath();X.moveTo(x+44,y+30);X.lineTo(x+49,y+12);X.lineTo(x+54,y+30);X.fill();
+if(place){X.fillStyle="#ffe14d44";X.fillRect(x-52,y-16,104,56);X.strokeStyle="#ffe14d";X.lineWidth=2;X.strokeRect(x-52,y-16,104,56);X.strokeStyle="#ffe14d88";X.lineWidth=1;for(let i=1;i<4;i++){X.beginPath();X.moveTo(x-52+i*26,y-16);X.lineTo(x-52+i*26,y+40);X.moveTo(x-52,y-16+i*14);X.lineTo(x+52,y-16+i*14);X.stroke()}}}
+function built(p,t){const b=p.b,s=SHOP[b.i],x=p.x,y=p.y,pr=Math.min(1,(G.t-b.t0)/2.2);if(pr>=1&&!b.done){b.done=true;b.gift=1;G.coins+=10;pop(x,y-20);fx.push({x,y:y-60,t:"Grand opening! +10🪙 Open the gift 🎁"});beep(784);hud();chk();for(let i=0;i<6;i++)addVis()}sh2(x+6,y+38,58,12,.3);
+if(!b.done){X.fillStyle="#d8c9a8";X.fillRect(x-42,y+36-58*pr,84,58*pr);X.strokeStyle="#f0b020";X.lineWidth=3;for(let i=0;i<4;i++){X.beginPath();X.moveTo(x-40+i*26,y+38);X.lineTo(x-40+i*26,y-26);X.stroke()}X.beginPath();X.moveTo(x-44,y-26);X.lineTo(x+44,y-26);X.stroke();
+X.strokeStyle="#c0392b";X.lineWidth=3;X.beginPath();X.moveTo(x+36,y+38);X.lineTo(x+36,y-50);X.lineTo(x-10,y-50);X.stroke();const sw=Math.sin(t*3)*6;X.lineWidth=1;X.beginPath();X.moveTo(x-6+sw,y-50);X.lineTo(x-6+sw,y-30);X.stroke();X.fillStyle="#555";X.fillRect(x-10+sw,y-30,8,6);return}
+const i=b.i;if(i==0){X.fillStyle="#3f8f3a";X.fillRect(x-48,y,96,34);X.fillStyle="#8a5a2a";X.fillRect(x-50,y-2,100,4);X.fillRect(x-50,y+32,100,4);for(let k=0;k<16;k++){X.fillStyle=FC[k%6];X.beginPath();X.arc(x-42+k%8*12,y+8+(k/8|0)*16+Math.sin(t*2+k)*1.2,5,0,7);X.fill()}}
+else if(i==1){for(const dx of[-26,26]){X.fillStyle="#8a5a2a";X.fillRect(dx+x-20,y+14,40,6);X.fillStyle="#fff";X.fillRect(dx+x-20,y+8,40,6);X.fillStyle="#c0392b";for(let k=0;k<5;k++)if(k%2==0)X.fillRect(dx+x-20+k*8,y+8,8,6)}X.strokeStyle="#6b4a2a";X.lineWidth=2;X.beginPath();X.moveTo(x,y+14);X.lineTo(x,y-28);X.stroke();X.fillStyle="#e74c3c";X.beginPath();X.moveTo(x-40,y-14);X.lineTo(x,y-34);X.lineTo(x+40,y-14);X.fill()}
+else if(i==4)carousel(x,y-10,t,true);else sfront(x,y,s[3],s[0],true,t,i==2?"🍿":i==3?"🍦":i==5?"🎨":"");
+for(let k=0;k<5;k++){X.fillStyle=FC[k];X.beginPath();X.arc(x-36+k*18,y-22+Math.sin(t*4+k)*1.4,2.5,0,7);X.fill()}giftDraw(b,x,y,t)}
+function dec(d,t){const x=d.x,y=d.y;switch(d.k){
+case"lamp":sh2(x+6,y+2,8,3);X.fillStyle="#2f3a46";X.fillRect(x-2,y-46,4,48);X.fillRect(x-7,y-50,14,5);X.fillStyle="#ffe58a";X.beginPath();X.arc(x,y-54,6,0,7);X.fill();X.fillStyle="#ffe58a33";X.beginPath();X.arc(x,y-54,13,0,7);X.fill();break;
+case"bench":benchD(x,y,true,t);break;
+case"bin":sh2(x+4,y+2,9,3);X.fillStyle="#3d7f4f";X.fillRect(x-7,y-18,14,20);X.fillStyle="#2c5f3a";X.fillRect(x-8,y-21,16,5);break;
+case"bush":sh2(x+5,y+3,18,6);for(const[a,b,r,c]of[[-9,-8,11,"#2b7436"],[9,-8,11,"#2b7436"],[0,-14,12,"#3f9a4a"]]){X.fillStyle=c;X.beginPath();X.arc(x+a,y+b,r,0,7);X.fill()}X.fillStyle="#7fe08a66";X.beginPath();X.arc(x-3,y-18,5,0,7);X.fill();break;
+case"planter":sh2(x+3,y+3,15,5);X.fillStyle="#b5653a";X.fillRect(x-13,y-10,26,12);X.fillStyle="#3f9a4a";X.fillRect(x-12,y-14,24,5);for(let i=0;i<5;i++){X.fillStyle=FC[i];X.beginPath();X.arc(x-10+i*5,y-16+Math.sin(t*2+i)*.8,3,0,7);X.fill()}break;
+case"sign":X.fillStyle="#6b4a2a";X.fillRect(x-2,y-30,4,32);X.fillStyle="#f4e3b2";X.fillRect(x-16,y-40,32,14);X.strokeStyle="#6b4a2a";X.strokeRect(x-16,y-40,32,14);X.fillStyle="#a24b00";X.font="bold 9px sans-serif";X.textAlign="center";X.fillText("FUN →",x,y-30);break;
+case"rock":X.fillStyle="#8f969d";X.beginPath();X.ellipse(x,y-5,14,9,0,0,7);X.fill();X.fillStyle="#b4bac0";X.beginPath();X.ellipse(x-3,y-8,8,5,0,0,7);X.fill();break;
+case"flowers":for(let i=0;i<9;i++){X.fillStyle=FC[(d.s+i)%6];X.beginPath();X.arc(x+Math.cos(i*2.4)*13,y+Math.sin(i*1.9)*7,3.2+Math.sin(t*2+i)*.3,0,7);X.fill()}break;
+case"table":sh2(x+3,y+4,24,7);X.fillStyle="#8a5a2a";X.fillRect(x-20,y-12,40,7);X.fillRect(x-22,y-4,10,4);X.fillRect(x+12,y-4,10,4);X.fillRect(x-22,y+2,44,3);X.fillStyle="#d44";X.fillRect(x-1,y-34,2,24);X.beginPath();X.moveTo(x-22,y-30);X.lineTo(x,y-42);X.lineTo(x+22,y-30);X.fill();break;
+case"hedge":sh2(x+3,y+3,30,6);X.fillStyle="#2b7436";X.beginPath();X.roundRect(x-30,y-16,60,18,9);X.fill();X.fillStyle="#3f9a4a";X.beginPath();X.roundRect(x-28,y-16,56,8,6);X.fill();break;
+case"flag":X.fillStyle="#6b4a2a";X.fillRect(x-1.5,y-50,3,52);X.fillStyle=FC[(d.s|0)%6];X.beginPath();X.moveTo(x,y-50);for(let i=1;i<=6;i++)X.lineTo(x+i*4,y-50+Math.sin(t*6+i)*2);X.lineTo(x+24,y-36);X.lineTo(x,y-34);X.fill();break;
+case"balloon":{const by=Math.sin(t*2+x)*4;X.strokeStyle="#9996";X.lineWidth=1;X.beginPath();X.moveTo(x,y);X.lineTo(x+2,y-30+by);X.stroke();for(let i=0;i<3;i++){X.fillStyle=FC[(i+(d.s|0))%6];X.beginPath();X.ellipse(x+i*8-6,y-40+by-i%2*4,7,9,0,0,7);X.fill()}break}
+case"fountain":sh2(x+4,y+8,48,14);X.fillStyle="#9aa6b2";X.beginPath();X.ellipse(x,y,46,18,0,0,7);X.fill();X.fillStyle="#4db6e6";X.beginPath();X.ellipse(x,y-2,40,14,0,0,7);X.fill();X.strokeStyle="#bfe9ff";X.lineWidth=1.5;for(let i=0;i<3;i++){X.beginPath();X.ellipse(x,y-2,(t*14+i*12)%40,(t*14+i*12)%40*.35,0,0,7);X.stroke()}
+X.fillStyle="#b8c2cc";X.fillRect(x-5,y-24,10,22);X.strokeStyle="#cfeeff";X.lineWidth=2;for(let i=-1;i<=1;i++){X.beginPath();X.moveTo(x,y-26);X.quadraticCurveTo(x+i*14,y-40+Math.sin(t*5+i)*3,x+i*24,y-6);X.stroke()}break}}
+const ICN=l=>/Ferris|Bench|Inspection|Mechanic|Weather|Storm|Opening|Cleaning|Carousel|Attraction|Queues/.test(l)?"🔧":/Stall|Food|Popcorn|Ice|Dessert/.test(l)?"🍴":/Aid|Emergency|Drill/.test(l)?"➕":/Bus|Transport|Map|Navigation|Discount|Senior|Family|Community|Programme|Ad/.test(l)?"ℹ️":"❗";
+function draw(){const W=C.width,H=C.height,z=cam.z,t=G.t,sv=solved();if(nearGift()&&!ov&&!place){const tp=$("tip");tp.style.display="block";tp.style.bottom="90px";tp.textContent="Press E · 🎁 Open the gift!"}X.setTransform(1,0,0,1,0,0);X.fillStyle="#3f8a35";X.fillRect(0,0,W,H);
+const tx=G.px-W/2/z,ty=G.py-H/2/z-30;cam.x+=(Math.max(0,Math.min(WW-W/z,tx))-cam.x)*.15;cam.y+=(Math.max(0,Math.min(WH-H/z,ty))-cam.y)*.15;if(W/z>WW)cam.x=(WW-W/z)/2;if(H/z>WH)cam.y=(WH-H/z)/2;
+X.setTransform(z,0,0,z,-cam.x*z,-cam.y*z);if(!GR)GR=mkGround();X.drawImage(GR,0,0);
+X.fillStyle="#6b4a2a";X.fillRect(WW/2-86,10,10,66);X.fillRect(WW/2+76,10,10,66);X.fillStyle="#f4e3b2";X.fillRect(WW/2-90,18,180,34);X.strokeStyle="#8a5a2a";X.lineWidth=3;X.strokeRect(WW/2-90,18,180,34);X.fillStyle="#c0392b";X.font="bold 15px sans-serif";X.textAlign="center";X.fillText("★ "+G.name.slice(0,22)+" ★",WW/2,40);
+const D=[];for(const r of TR)D.push({y:r.y,f:()=>tree(r.x,r.y,r.s,r.f,t,r.k)});for(const d of DC)if(sv>=d.need)D.push({y:d.y,f:()=>dec(d,t)});
+for(const s of G.sts){D.push({y:s.y+38,f:()=>stall(s,t)});const ny=s.y+58,lk=look(s);D.push({y:ny,f:()=>{person(s.x,ny,lk,t,s.sol&&Math.sin(t+s.x)>.7,2);if(!s.sol){const by=Math.sin(t*5)*3;X.fillStyle="#fff";X.strokeStyle="#e33";X.lineWidth=2.5;X.beginPath();X.arc(s.x,ny-64+by,12,0,7);X.fill();X.stroke();X.font="14px sans-serif";X.textAlign="center";X.fillStyle="#222";X.fillText(ICN(s.q.loc),s.x,ny-59+by)}if(near()==s&&!ov){X.strokeStyle="#fff";X.lineWidth=2;X.beginPath();X.ellipse(s.x,ny,18,8,0,0,7);X.stroke()}}});
+if(s.sol){const q=Math.min(3,1+(sv/6|0));s.qs=s.qs||[0,1,2].map(i=>({cl:`hsl(${(s.q.id*53+i*97)%360},55%,55%)`,sk:SK[(s.q.id+i)%4],hc:HC[(s.q.id*2+i)%5],long:i==1,sc:i==2?1.05:1.3,hat:i==0?"#e8453c":null}));for(let i=0;i<q;i++){const o=s.qs[i],qx=s.x-34+i*24,qy=s.y+88;D.push({y:qy,f:()=>person(qx,qy,o,t+i,false,0)})}}}
+for(const p of PLOTS)D.push({y:p.y+(p.b?38:-20),f:()=>p.b?built(p,t):lot(p,t)});
+for(const v of G.vis)D.push({y:v.y,f:()=>person(v.x,v.y,v,v.t,v.mv,v.dir||2)});
+D.push({y:G.py,f:()=>person(G.px,G.py,{cl:"#e8453c",sk:"#f1c9a0",hc:"#3a2312",hat:G.hat||"#2a6fd6",sc:1.7,pc:"#2f4a8a"},G.wt,G.moving,G.dir)});D.sort((a,b)=>a.y-b.y);for(const d of D)d.f();
+X.font="bold 14px sans-serif";X.textAlign="center";for(const f of fx){if(f.fw){X.fillStyle=f.c;X.fillRect(f.x,f.y,4,4)}else{X.fillStyle="#fff";X.strokeStyle="#a60";X.lineWidth=3;X.strokeText(f.t,f.x,f.y);X.fillText(f.t,f.x,f.y)}}}
+function hud(){const L=LV[G.lv],h=happy(),bar=(v,c)=>`<div class=bar><i style="width:${Math.min(100,v)}%;${c?"background:"+c:""}"></i></div>`;
+$("hud").innerHTML=`<div class=gp><b>🎡 ${G.name}</b><small>${L.n}</small></div><div class=gp>🪙 <b>${G.coins}</b></div><div class=gp>⭐ <b>${G.stars}</b></div><div class=gp>👥 <b>${G.vis.length}</b></div><div class="gp w">😊 <b>${h}%</b> <small>goal ${L.hap}%</small>${bar(h,h>=L.hap?"#4cd964":"#ffb020")}</div><div class="gp w">✅ <b>${solved()}</b>/18 · 🏗 <b>${Math.min(builds(),L.build)}</b>/${L.build}${bar(solved()/18*100)}</div><span class=sp></span><button class=hb onclick=shop()>🏗 Shop</button><button class=hb onclick=mapv()>🗺</button><button class=hb onclick=jour()>📖</button><button class=hb onclick="snd=!snd;hud()">${snd?"🔊":"🔇"}</button>`}
+
+// ===== BUILD REWARDS =====
+const CARDS=["Perfect form: have/has/had + past participle. Fun fact: “go” becomes “gone”, never “goed”!","Gerund: “Swimming is fun!” The -ing word is the subject, so it works like a noun.","-ing vs -ed: The ride is exciting. I am excited. What causes the feeling gets -ing.","“The injured”, “the retired”, “the stranded”: past participle + the = a group of people.","Continuous form: be + -ing. “They have been waiting for an hour!”","Irregular past participles: write→written, ring→rung, forget→forgotten, take→taken."];
+const HATS=["#f5c518","#e84393","#2bb3a0","#8e44ad","#ff7a1a","#222"];
+function pop(x,y){for(let i=0;i<30;i++)fx.push({fw:1,x,y,vx:rnd(-90,90),vy:rnd(-160,-40),c:`hsl(${Math.random()*360},90%,60%)`,l:rnd(.8,1.6)})}
+function giftDraw(b,x,y,t){if(!b.gift)return;const by=Math.sin(t*3)*3,gx=x,gy=y+64+by;sh2(gx,y+66,12,4,.3);X.fillStyle="#e8453c";X.fillRect(gx-10,gy-16,20,16);X.fillStyle="#ffd34a";X.fillRect(gx-2,gy-16,4,16);X.fillRect(gx-10,gy-10,20,3);X.beginPath();X.ellipse(gx-5,gy-19,5,4,0,0,7);X.ellipse(gx+5,gy-19,5,4,0,0,7);X.fill();X.fillStyle="#fff";for(let i=0;i<3;i++){const a=t*4+i*2.1;X.fillRect(gx+Math.cos(a)*16,gy-8+Math.sin(a)*12,3,3)}}
+function nearGift(){for(const p of PLOTS)if(p.b&&p.b.gift&&p.b.done&&Math.hypot(G.px-p.x,G.py-(p.y+64))<60)return p}
+function collect(p){p.b.gift=0;G.gc=G.gc||0;G.cards=G.cards||[];const k=G.gc++%4;let m;
+if(k==0){G.cards.push(CARDS[G.cards.length%CARDS.length]);m="🃏 New Grammar Card! See your Journal"}
+else if(k==1){G.hat=HATS[(G.gc>>1)%6];m="🎩 You got a new hat!"}
+else if(k==2){for(let i=0;i<6;i++)addVis();m="🎈 Balloon party! More visitors arrive"}
+else{G.coins+=15;m="🪙 +15 coins!"}
+beep(880);pop(p.x,p.y+40);fx.push({x:p.x,y:p.y+20,t:m});$("tip").style.display="none";hud()}
+function act(){if(!G||ov)return;const g=nearGift();if(g){collect(g);return}const n=near();if(n)ask(n)}
+const jour0=jour;jour=function(){if(ov)return;jour0();const c=(G.cards||[]).map(x=>`<p>🃏 ${x}</p>`).join("")||"<p><i>Build attractions and open the gifts to collect Grammar Cards!</i></p>";$("pn").innerHTML=$("pn").innerHTML.replace('<button onclick="close2()">Close</button>',"<h3>🃏 Grammar Cards</h3>"+c+'<button onclick="close2()">Close</button>')};
+
+addEventListener("error",e=>{const d=document.createElement("div");d.style.cssText="position:absolute;top:60px;left:10px;right:10px;background:#fff;color:#a00;padding:8px;z-index:9;font:14px monospace";d.textContent="Error: "+e.message+" (line "+e.lineno+")";document.body.appendChild(d)});
+G=null;newGame(0,"Sunny Fun Park");hud();title();requestAnimationFrame(step);
+</script></body></html>
